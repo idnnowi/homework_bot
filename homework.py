@@ -7,18 +7,14 @@ import telegram
 
 from dotenv import load_dotenv
 from http import HTTPStatus
-from exceptions import HttpResponseError, RequestError, TokenIsNoneError
+from exceptions import (
+    HttpResponseError,
+    RequestError,
+    StatusIsNotOK,
+)
 
 load_dotenv()
 
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename='main.log',
-    filemode='w',
-    encoding='utf-8',
-    format='%(asctime)s %(levelname)s %(message)s',
-)
 
 PRACTICUM_TOKEN = os.getenv('HW_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TOKEN')
@@ -36,13 +32,16 @@ HOMEWORK_VERDICTS = {
 }
 
 
+TOKENS_NAMES = (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+
+
 def check_tokens():
     """Проверка токенов окружения."""
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    for token in tokens:
-        if token is None:
-            logging.critical('Токен %(token)s не задан!')
-            raise TokenIsNoneError('Токен %(token)s не задан!')
+    for name in TOKENS_NAMES:
+        if not vars()['name']:
+            logging.critical('Токен не задан!')
+            raise SystemExit(-1)
+    logging.debug('Токены заданы.')
 
 
 def send_message(bot, message):
@@ -50,9 +49,11 @@ def send_message(bot, message):
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.debug('Сообшение отправленно успешно.')
-    except Exception as error:
-        logging.error(f'Не удалось отправить {message}')
-        raise (HttpResponseError('Ошибка API Telegram Bot.')) from error
+    except telegram.error.TelegramError as error:
+        logging.exception(f'Не удалось отправить {message}')
+        raise (
+            HttpResponseError('Ошибка API Telegram Bot.', HTTPStatus.CONFLICT)
+        ) from error
 
 
 def get_api_answer(timestamp):
@@ -61,28 +62,36 @@ def get_api_answer(timestamp):
         homework = requests.get(
             ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
         )
-        if homework.status_code is HTTPStatus.OK:
-            logging.debug('Статус API code: 200.')
-            return homework.json()
-        logging.error('Проблемы со стороны API.')
-        raise HttpResponseError('Проблемы со стороны API.')
     except requests.RequestException:
-        logging.error('Ошибка ответа API.')
-        raise RequestError('Ошибка ответа API.')
+        logging.exception('Ошибка ответа API.')
+        raise RequestError('Ошибка ответа API.', HTTPStatus.CONFLICT)
+    homework_json = homework.json()
+    if homework.status_code != HTTPStatus.OK:
+        if set(homework_json) == {'error', 'code'}:
+            logging.exception('Ошибка со стороны API')
+            raise StatusIsNotOK(
+                'Ошибка со стороны API', homework_json.get('error')
+            )
+        logging.exception('Проблемы со стороны API.')
+        raise HttpResponseError(
+            'Проблемы со стороны API.', homework.status_code
+        )
+    logging.debug('Статус API code: 200.')
+    return homework_json
 
 
 def check_response(response: dict) -> list:
     """Проверка ответа API."""
     if not isinstance(response, dict):
-        logging.error('Ответ не является словарём.')
+        logging.exception('Ответ не является словарём.')
         raise TypeError('Ответ не является словарём.')
 
     if 'homeworks' not in response:
-        logging.error('Ответ API пустой!')
+        logging.exception('Ответ API пустой!')
         raise KeyError('Ответ API пустой!')
 
     if not isinstance(response['homeworks'], list):
-        logging.error('Ответ не является списком.')
+        logging.exception('Ответ не является списком.')
         raise TypeError('Ответ не является списком.')
     return response.get('homeworks')[0]
 
@@ -93,11 +102,11 @@ def parse_status(homework):
         homework_name = homework.get('homework_name')
         status = homework.get('status')
         if status not in HOMEWORK_VERDICTS:
-            logging.error('Неизвестный статус.')
+            logging.exception('Неизвестный статус.')
             raise KeyError('Неизвестный статус.')
         verdict = HOMEWORK_VERDICTS[status]
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    logging.error('Отсутствует homework_name.')
+    logging.exception('Отсутствует homework_name.')
     raise KeyError('Отсутствует homework_name.')
 
 
@@ -105,7 +114,7 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = 0  # int(time.time())
     while True:
         try:
             request = get_api_answer(timestamp)
@@ -115,11 +124,18 @@ def main():
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            logging.error(message)
+            logging.exception(message)
 
         finally:
             time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filename='main.log',
+        filemode='w',
+        encoding='utf-8',
+        format='%(asctime)s %(levelname)s %(message)s',
+    )
     main()

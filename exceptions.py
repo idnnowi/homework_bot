@@ -1,17 +1,22 @@
 """Errors file."""
 
 
-class ProjectException(Exception):
+class BaseError(Exception):
     """Base exception of project."""
 
+    def __init__(self, msg, code):
+        """Message and error code."""
+        self.msg = msg
+        self.code = code
 
-class TokenIsNoneError(ProjectException):
-    """Error raised when token is not defined."""
 
-
-class HttpResponseError(ProjectException):
+class HttpResponseError(BaseError):
     """API response error."""
 
 
-class RequestError(ProjectException):
+class RequestError(BaseError):
     """Request failed."""
+
+
+class StatusIsNotOK(BaseError):
+    """When status code not 200."""
