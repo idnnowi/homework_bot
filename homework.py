@@ -32,13 +32,13 @@ HOMEWORK_VERDICTS = {
 }
 
 
-TOKENS_NAMES = (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+TOKENS_NAMES = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
 
 
 def check_tokens():
     """Проверка токенов окружения."""
     for name in TOKENS_NAMES:
-        if not vars()['name']:
+        if not globals()[name]:
             logging.critical('Токен не задан!')
             raise SystemExit(-1)
     logging.debug('Токены заданы.')
@@ -114,7 +114,7 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = 0  # int(time.time())
+    timestamp = int(time.time())
     while True:
         try:
             request = get_api_answer(timestamp)
