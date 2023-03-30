@@ -11,6 +11,7 @@ from exceptions import (
     HttpResponseError,
     RequestError,
     StatusIsNotOK,
+    TokenCheckError,
 )
 
 load_dotenv()
@@ -40,7 +41,7 @@ def check_tokens():
     for name in TOKENS_NAMES:
         if not globals()[name]:
             logging.critical('Токен не задан!')
-            raise SystemExit(-1)
+            raise TokenCheckError('Токен не задан!', name)
     logging.debug('Токены заданы.')
 
 

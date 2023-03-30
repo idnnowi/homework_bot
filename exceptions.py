@@ -10,6 +10,10 @@ class BaseError(Exception):
         self.code = code
 
 
+class TokenCheckError(BaseError):
+    """Token doesn't exist."""
+
+
 class HttpResponseError(BaseError):
     """API response error."""
 
