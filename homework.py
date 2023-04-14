@@ -94,7 +94,6 @@ def check_response(response: dict) -> list:
     if not isinstance(response['homeworks'], list):
         logging.exception('Ответ не является списком.')
         raise TypeError('Ответ не является списком.')
-    return response.get('homeworks')[0]
 
 
 def parse_status(homework):
@@ -119,9 +118,13 @@ def main():
     while True:
         try:
             request = get_api_answer(timestamp)
-            homework = check_response(request)
-            message = parse_status(homework)
-            send_message(bot, message)
+            check_response(request)
+            timestamp = request['current_date']
+            if request['homeworks']:
+                message = parse_status(request.get('homeworks')[0])
+                send_message(bot, message)
+            else:
+                logging.debug('Status has not changed')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
